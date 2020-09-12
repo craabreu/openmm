@@ -594,6 +594,9 @@ public:
      * normally used to represent bonded interactions.
      */
     void setExceptionsUsePeriodicBoundaryConditions(bool periodic);
+
+    bool getUseRespaSwitching() const;
+    void setUseRespaSwitching(bool use);
 protected:
     ForceImpl* createImpl() const;
 private:
@@ -605,6 +608,7 @@ private:
     NonbondedMethod nonbondedMethod;
     double cutoffDistance, switchingDistance, rfDielectric, ewaldErrorTol, alpha, dalpha;
     bool useSwitchingFunction, useDispersionCorrection, exceptionsUsePeriodic;
+    bool respa;
     int recipForceGroup, nx, ny, nz, dnx, dny, dnz;
     void addExclusionsToSet(const std::vector<std::set<int> >& bonded12, std::set<int>& exclusions, int baseParticle, int fromParticle, int currentLevel) const;
     int getGlobalParameterIndex(const std::string& parameter) const;

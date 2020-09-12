@@ -49,7 +49,7 @@ using std::vector;
 
 NonbondedForce::NonbondedForce() : nonbondedMethod(NoCutoff), cutoffDistance(1.0), switchingDistance(-1.0), rfDielectric(78.3),
         ewaldErrorTol(5e-4), alpha(0.0), dalpha(0.0), useSwitchingFunction(false), useDispersionCorrection(true), exceptionsUsePeriodic(false), recipForceGroup(-1),
-        nx(0), ny(0), nz(0), dnx(0), dny(0), dnz(0) {
+        nx(0), ny(0), nz(0), dnx(0), dny(0), dnz(0), respa(false) {
 }
 
 NonbondedForce::NonbondedMethod NonbondedForce::getNonbondedMethod() const {
@@ -354,4 +354,12 @@ bool NonbondedForce::getExceptionsUsePeriodicBoundaryConditions() const {
 
 void NonbondedForce::setExceptionsUsePeriodicBoundaryConditions(bool periodic) {
     exceptionsUsePeriodic = periodic;
+}
+
+bool NonbondedForce::getUseRespaSwitching() const {
+    return respa;
+}
+
+void NonbondedForce::setUseRespaSwitching(bool use) {
+    respa = use;
 }
