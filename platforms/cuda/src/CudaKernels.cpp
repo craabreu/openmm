@@ -705,6 +705,7 @@ void CudaCalcNonbondedForceKernel::initialize(const System& system, const Nonbon
     defines["HAS_COULOMB"] = (hasCoulomb ? "1" : "0");
     defines["HAS_LENNARD_JONES"] = (hasLJ ? "1" : "0");
     defines["USE_LJ_SWITCH"] = (useCutoff && force.getUseSwitchingFunction() ? "1" : "0");
+    defines["RESPA"] = (force.getUseRespaSwitching() ? "1" : "0");
     if (useCutoff) {
         // Compute the reaction field constants.
 
