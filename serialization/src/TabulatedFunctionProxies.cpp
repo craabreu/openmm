@@ -68,7 +68,7 @@ Continuous2DFunctionProxy::Continuous2DFunctionProxy() : SerializationProxy("Con
 }
 
 void Continuous2DFunctionProxy::serialize(const void* object, SerializationNode& node) const {
-    node.setIntProperty("version", 2);
+    node.setIntProperty("version", 3);
     const Continuous2DFunction& function = *reinterpret_cast<const Continuous2DFunction*>(object);
     int xsize, ysize;
     double xmin, xmax, ymin, ymax;
@@ -83,28 +83,35 @@ void Continuous2DFunctionProxy::serialize(const void* object, SerializationNode&
     SerializationNode& valuesNode = node.createChildNode("Values");
     for (auto v : values)
         valuesNode.createChildNode("Value").setDoubleProperty("v", v);
-    node.setBoolProperty("periodic", function.getPeriodic());
+    node.setBoolProperty("xperiodic", function.getPeriodic(0));
+    node.setBoolProperty("yperiodic", function.getPeriodic(1));
 }
 
 void* Continuous2DFunctionProxy::deserialize(const SerializationNode& node) const {
     int version = node.getIntProperty("version");
-    if (!(version == 1 || version == 2))
+    if (version < 1 || version > 3)
         throw OpenMMException("Unsupported version number");
     const SerializationNode& valuesNode = node.getChildNode("Values");
     vector<double> values;
     for (auto& child : valuesNode.getChildren())
         values.push_back(child.getDoubleProperty("v"));
-    bool periodic = version == 1 ? false : node.getBoolProperty("periodic");
+    bool xperiodic = false, yperiodic = false;
+    if (version == 2)
+        xperiodic = yperiodic = node.getBoolProperty("periodic");
+    else if (version == 3) {
+        xperiodic = node.getBoolProperty("xperiodic");
+        yperiodic = node.getBoolProperty("yperiodic");
+    }
     return new Continuous2DFunction(node.getIntProperty("xsize"), node.getIntProperty("ysize"), values,
             node.getDoubleProperty("xmin"), node.getDoubleProperty("xmax"),
-            node.getDoubleProperty("ymin"),node.getDoubleProperty("ymax"), periodic);
+            node.getDoubleProperty("ymin"), node.getDoubleProperty("ymax"), xperiodic, yperiodic);
 }
 
 Continuous3DFunctionProxy::Continuous3DFunctionProxy() : SerializationProxy("Continuous3DFunction") {
 }
 
 void Continuous3DFunctionProxy::serialize(const void* object, SerializationNode& node) const {
-    node.setIntProperty("version", 2);
+    node.setIntProperty("version", 3);
     const Continuous3DFunction& function = *reinterpret_cast<const Continuous3DFunction*>(object);
     int xsize, ysize, zsize;
     double xmin, xmax, ymin, ymax, zmin, zmax;
@@ -122,21 +129,30 @@ void Continuous3DFunctionProxy::serialize(const void* object, SerializationNode&
     SerializationNode& valuesNode = node.createChildNode("Values");
     for (auto v : values)
         valuesNode.createChildNode("Value").setDoubleProperty("v", v);
-    node.setBoolProperty("periodic", function.getPeriodic());
+    node.setBoolProperty("xperiodic", function.getPeriodic(0));
+    node.setBoolProperty("yperiodic", function.getPeriodic(1));
+    node.setBoolProperty("zperiodic", function.getPeriodic(2));
 }
 
 void* Continuous3DFunctionProxy::deserialize(const SerializationNode& node) const {
     int version = node.getIntProperty("version");
-    if (!(version == 1 || version == 2))
+    if (version < 1 || version > 3)
         throw OpenMMException("Unsupported version number");
     const SerializationNode& valuesNode = node.getChildNode("Values");
     vector<double> values;
     for (auto& child : valuesNode.getChildren())
         values.push_back(child.getDoubleProperty("v"));
-    bool periodic = version == 1 ? false : node.getBoolProperty("periodic");
+    bool xperiodic = false, yperiodic = false, zperiodic = false;
+    if (version == 2)
+        xperiodic = yperiodic = zperiodic = node.getBoolProperty("periodic");
+    else if (version == 3) {
+        xperiodic = node.getBoolProperty("xperiodic");
+        yperiodic = node.getBoolProperty("yperiodic");
+        zperiodic = node.getBoolProperty("zperiodic");
+    }
     return new Continuous3DFunction(node.getIntProperty("xsize"), node.getIntProperty("ysize"), node.getIntProperty("zsize"), values,
             node.getDoubleProperty("xmin"), node.getDoubleProperty("xmax"), node.getDoubleProperty("ymin"), node.getDoubleProperty("ymax"),
-            node.getDoubleProperty("zmin"), node.getDoubleProperty("zmax"), periodic);
+            node.getDoubleProperty("zmin"), node.getDoubleProperty("zmax"), xperiodic, yperiodic, zperiodic);
 }
 
 Discrete1DFunctionProxy::Discrete1DFunctionProxy() : SerializationProxy("Discrete1DFunction") {
