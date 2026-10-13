@@ -112,6 +112,23 @@ public:
      */
     static void create2DSpline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& values, bool periodic, std::vector<std::vector<double> >& c);
     /**
+     * Fit a cubic spline surface f(x,y) to a 2D set of data points, periodic along some
+     * axes and natural along the others.  The resulting spline interpolates all the data
+     * points and has a continuous second derivative everywhere.  Along a periodic axis the
+     * derivatives are identical at both ends, and along a non-periodic axis the second
+     * derivative is 0 at both ends.
+     * @param x         the values of the first independent variable at the data points to interpolate.  They must
+     *                  be strictly increasing: x[i] > x[i-1].
+     * @param y         the values of the second independent variable at the data points to interpolate.  They must
+     *                  be strictly increasing: y[i] > y[i-1].
+     * @param values    the values of the dependent variable at the data points to interpolate.  They must be ordered
+     *                  so that values[i+xsize*j] = f(x[i],y[j]), where xsize is the length of x.
+     * @param xperiodic whether the interpolated function is periodic along x
+     * @param yperiodic whether the interpolated function is periodic along y
+     * @param c         on exit, this contains the spline coefficients at each of the data points
+     */
+    static void create2DSpline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& values, bool xperiodic, bool yperiodic, std::vector<std::vector<double> >& c);
+    /**
      * Fit a natural cubic spline surface f(x,y) to a 2D set of data points.  The resulting spline interpolates all the
      * data points, has a continuous second derivative everywhere, and has a second derivative of 0 at the boundary.
      *
@@ -167,6 +184,27 @@ public:
      * @param c        on exit, this contains the spline coefficients at each of the data points
      */
     static void create3DSpline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z, const std::vector<double>& values, bool periodic, std::vector<std::vector<double> >& c);
+    /**
+     * Fit a cubic spline surface f(x,y,z) to a 3D set of data points, periodic along some
+     * axes and natural along the others.  The resulting spline interpolates all the data
+     * points and has a continuous second derivative everywhere.  Along a periodic axis the
+     * derivatives are identical at both ends, and along a non-periodic axis the second
+     * derivative is 0 at both ends.
+     * @param x         the values of the first independent variable at the data points to interpolate.  They must
+     *                  be strictly increasing: x[i] > x[i-1].
+     * @param y         the values of the second independent variable at the data points to interpolate.  They must
+     *                  be strictly increasing: y[i] > y[i-1].
+     * @param z         the values of the third independent variable at the data points to interpolate.  They must
+     *                  be strictly increasing: z[i] > z[i-1].
+     * @param values    the values of the dependent variable at the data points to interpolate.  They must be ordered
+     *                  so that values[i+xsize*j+xsize*ysize*k] = f(x[i],y[j],z[k]), where xsize is the length of x
+     *                  and ysize is the length of y.
+     * @param xperiodic whether the interpolated function is periodic along x
+     * @param yperiodic whether the interpolated function is periodic along y
+     * @param zperiodic whether the interpolated function is periodic along z
+     * @param c         on exit, this contains the spline coefficients at each of the data points
+     */
+    static void create3DSpline(const std::vector<double>& x, const std::vector<double>& y, const std::vector<double>& z, const std::vector<double>& values, bool xperiodic, bool yperiodic, bool zperiodic, std::vector<std::vector<double> >& c);
     /**
      * Fit a natural cubic spline surface f(x,y,z) to a 3D set of data points.  The resulting spline interpolates all the
      * data points, has a continuous second derivative everywhere, and has a second derivative of 0 at the boundary.

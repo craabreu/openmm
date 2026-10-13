@@ -33,6 +33,8 @@
 #include "openmm/TabulatedFunction.h"
 #include "openmm/internal/AssertionUtilities.h"
 #include "openmm/serialization/XmlSerializer.h"
+#include "openmm/serialization/SerializationNode.h"
+#include "openmm/serialization/SerializationProxy.h"
 #include <iostream>
 #include <sstream>
 
@@ -320,6 +322,76 @@ void testDiscrete3DFunction() {
         ASSERT_EQUAL(values[j], values2[j]);
 }
 
+void testMixedPeriodicContinuous2DFunction() {
+    int xsize = 5, ysize = 12;
+    vector<double> values(xsize*ysize);
+    for (int i = 0; i < (int) values.size(); i++)
+        values[i] = sin((double) i);
+    Continuous2DFunction function(xsize, ysize, values, 0.0, 1.0, 0.5, 2.0, false, true);
+    stringstream buffer;
+    XmlSerializer::serialize<Continuous2DFunction>(&function, "Function", buffer);
+    Continuous2DFunction* copy = XmlSerializer::deserialize<Continuous2DFunction>(buffer);
+    ASSERT(!copy->getPeriodic(0));
+    ASSERT(copy->getPeriodic(1));
+    ASSERT(*copy == function);
+    delete copy;
+}
+
+void testMixedPeriodicContinuous3DFunction() {
+    int xsize = 4, ysize = 5, zsize = 3;
+    vector<double> values(xsize*ysize*zsize);
+    for (int i = 0; i < (int) values.size(); i++)
+        values[i] = sin((double) i);
+    Continuous3DFunction function(xsize, ysize, zsize, values, 0.0, 1.0, 0.5, 2.0, -1.0, 1.0, true, true, false);
+    stringstream buffer;
+    XmlSerializer::serialize<Continuous3DFunction>(&function, "Function", buffer);
+    Continuous3DFunction* copy = XmlSerializer::deserialize<Continuous3DFunction>(buffer);
+    ASSERT(copy->getPeriodic(0));
+    ASSERT(copy->getPeriodic(1));
+    ASSERT(!copy->getPeriodic(2));
+    ASSERT(*copy == function);
+    delete copy;
+}
+
+void testVersion2PeriodicContinuousFunctions() {
+    // Files written before per-axis periodicity existed apply "periodic" to every axis.
+
+    SerializationNode node2;
+    node2.setIntProperty("version", 2);
+    node2.setIntProperty("xsize", 3);
+    node2.setIntProperty("ysize", 3);
+    node2.setDoubleProperty("xmin", 0.0);
+    node2.setDoubleProperty("xmax", 1.0);
+    node2.setDoubleProperty("ymin", 0.0);
+    node2.setDoubleProperty("ymax", 1.0);
+    node2.setBoolProperty("periodic", true);
+    SerializationNode& values2 = node2.createChildNode("Values");
+    for (int i = 0; i < 9; i++)
+        values2.createChildNode("Value").setDoubleProperty("v", 1.0);
+    Continuous2DFunction* fn2 = reinterpret_cast<Continuous2DFunction*>(SerializationProxy::getProxy("Continuous2DFunction").deserialize(node2));
+    ASSERT(fn2->getPeriodic(0) && fn2->getPeriodic(1));
+    delete fn2;
+
+    SerializationNode node3;
+    node3.setIntProperty("version", 2);
+    node3.setIntProperty("xsize", 3);
+    node3.setIntProperty("ysize", 3);
+    node3.setIntProperty("zsize", 3);
+    node3.setDoubleProperty("xmin", 0.0);
+    node3.setDoubleProperty("xmax", 1.0);
+    node3.setDoubleProperty("ymin", 0.0);
+    node3.setDoubleProperty("ymax", 1.0);
+    node3.setDoubleProperty("zmin", 0.0);
+    node3.setDoubleProperty("zmax", 1.0);
+    node3.setBoolProperty("periodic", true);
+    SerializationNode& values3 = node3.createChildNode("Values");
+    for (int i = 0; i < 27; i++)
+        values3.createChildNode("Value").setDoubleProperty("v", 1.0);
+    Continuous3DFunction* fn3 = reinterpret_cast<Continuous3DFunction*>(SerializationProxy::getProxy("Continuous3DFunction").deserialize(node3));
+    ASSERT(fn3->getPeriodic(0) && fn3->getPeriodic(1) && fn3->getPeriodic(2));
+    delete fn3;
+}
+
 int main() {
     try {
         testContinuous1DFunction();
@@ -331,6 +403,9 @@ int main() {
         testDiscrete1DFunction();
         testDiscrete2DFunction();
         testDiscrete3DFunction();
+        testMixedPeriodicContinuous2DFunction();
+        testMixedPeriodicContinuous3DFunction();
+        testVersion2PeriodicContinuousFunctions();
     }
     catch(const exception& e) {
         cout << "exception: " << e.what() << endl;

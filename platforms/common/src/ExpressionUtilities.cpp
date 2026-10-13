@@ -337,14 +337,12 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                         if (periodic) {
                             out << "x = (x - " << paramsFloat[0] << ")*" << paramsFloat[5]<< ";\n";
                             out << "x = (x - floor(x))*" << paramsFloat[6] << ";\n";
-                            out << "int index = (int) (floor(x));\n";
                         }
                         else {
                             out << "if (x >= " << paramsFloat[0] << " && x <= " << paramsFloat[1] << ") {\n";
                             out << "x = (x - " << paramsFloat[0] << ")*" << paramsFloat[2] << ";\n";
-                            out << "int index = (int) (floor(x));\n";
-                            out << "index = min(index, (int) " << paramsInt[3] << ");\n";
                         }
+                        out << "int index = min((int) floor(x), (int) " << paramsInt[3] << ");\n";
                         out << "float4 coeff = " << functionNames[i].second << "[index];\n";
                         out << "real b = x-index;\n";
                         out << "real a = 1.0f-b;\n";
@@ -359,24 +357,35 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                             out << "}\n";
                       }
                     else if (dynamic_cast<const Continuous2DFunction*>(functions[i]) != NULL) {
-                        int periodic = functionParams[i][8];
+                        bool xperiodic = functionParams[i][8];
+                        bool yperiodic = functionParams[i][11];
                         out << "real x = " << getTempName(node.getChildren()[0], temps) << suffix << ";\n";
                         out << "real y = " << getTempName(node.getChildren()[1], temps) << suffix << ";\n";
-                        if (periodic) {
+                        vector<string> inRange;
+                        if (!xperiodic)
+                            inRange.push_back("x >= " + paramsFloat[2] + " && x <= " + paramsFloat[3]);
+                        if (!yperiodic)
+                            inRange.push_back("y >= " + paramsFloat[4] + " && y <= " + paramsFloat[5]);
+                        if (!inRange.empty()) {
+                            out << "if (" << inRange[0];
+                            for (int k = 1; k < (int) inRange.size(); k++)
+                                out << " && " << inRange[k];
+                            out << ") {\n";
+                        }
+                        if (xperiodic) {
                             out << "x = (x - " << paramsFloat[2] << ")*" << paramsFloat[9] << ";\n";
-                            out << "y = (y - " << paramsFloat[4] << ")*" << paramsFloat[10] << ";\n";
                             out << "x = (x - floor(x))*" << paramsFloat[0] << ";\n";
-                            out << "y = (y - floor(y))*" << paramsFloat[1] << ";\n";
-                            out << "int s = (int) floor(x);\n";
-                            out << "int t = (int) floor(y);\n";
                         }
-                        else {
-                            out << "if (x >= " << paramsFloat[2] << " && x <= " << paramsFloat[3] << " && y >= " << paramsFloat[4] << " && y <= " << paramsFloat[5] << ") {\n";
+                        else
                             out << "x = (x - " << paramsFloat[2] << ")*" << paramsFloat[6] << ";\n";
-                            out << "y = (y - " << paramsFloat[4] << ")*" << paramsFloat[7] << ";\n";
-                            out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
-                            out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
+                        if (yperiodic) {
+                            out << "y = (y - " << paramsFloat[4] << ")*" << paramsFloat[10] << ";\n";
+                            out << "y = (y - floor(y))*" << paramsFloat[1] << ";\n";
                         }
+                        else
+                            out << "y = (y - " << paramsFloat[4] << ")*" << paramsFloat[7] << ";\n";
+                        out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
+                        out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
                         out << "int coeffIndex = 4*(s+" << paramsInt[0] << "*t);\n";
                         out << "float4 c[4];\n";
                         for (int j = 0; j < 4; j++)
@@ -408,34 +417,35 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                             else
                                 throw OpenMMException("Unsupported derivative order for Continuous2DFunction");
                         }
-                        if (!periodic)
+                        if (!inRange.empty())
                             out << "}\n";
                     }
                     else if (dynamic_cast<const Continuous3DFunction*>(functions[i]) != NULL) {
-                        int periodic = functionParams[i][12];
-                        out << "real x = " << getTempName(node.getChildren()[0], temps) << suffix << ";\n";
-                        out << "real y = " << getTempName(node.getChildren()[1], temps) << suffix << ";\n";
-                        out << "real z = " << getTempName(node.getChildren()[2], temps) << suffix << ";\n";
-                        if (periodic) {
-                            out << "x = (x - " << paramsFloat[3] << ")*" << paramsFloat[13] << ";\n";
-                            out << "y = (y - " << paramsFloat[5] << ")*" << paramsFloat[14] << ";\n";
-                            out << "z = (z - " << paramsFloat[7] << ")*" << paramsFloat[15] << ";\n";
-                            out << "x = (x - floor(x))*" << paramsFloat[0] << ";\n";
-                            out << "y = (y - floor(y))*" << paramsFloat[1] << ";\n";
-                            out << "z = (z - floor(z))*" << paramsFloat[2] << ";\n";
-                            out << "int s = (int) floor(x);\n";
-                            out << "int t = (int) floor(y);\n";
-                            out << "int u = (int) floor(z);\n";
+                        bool periodic[] = {(bool) functionParams[i][12], (bool) functionParams[i][16], (bool) functionParams[i][17]};
+                        const string axis[] = {"x", "y", "z"};
+                        for (int k = 0; k < 3; k++)
+                            out << "real " << axis[k] << " = " << getTempName(node.getChildren()[k], temps) << suffix << ";\n";
+                        vector<string> inRange;
+                        for (int k = 0; k < 3; k++)
+                            if (!periodic[k])
+                                inRange.push_back(axis[k] + " >= " + paramsFloat[3+2*k] + " && " + axis[k] + " <= " + paramsFloat[4+2*k]);
+                        if (!inRange.empty()) {
+                            out << "if (" << inRange[0];
+                            for (int k = 1; k < (int) inRange.size(); k++)
+                                out << " && " << inRange[k];
+                            out << ") {\n";
                         }
-                        else {
-                            out << "if (x >= " << paramsFloat[3] << " && x <= " << paramsFloat[4] << " && y >= " << paramsFloat[5] << " && y <= " << paramsFloat[6] << " && z >= " << paramsFloat[7] << " && z <= " << paramsFloat[8] << ") {\n";
-                            out << "x = (x - " << paramsFloat[3] << ")*" << paramsFloat[9] << ";\n";
-                            out << "y = (y - " << paramsFloat[5] << ")*" << paramsFloat[10] << ";\n";
-                            out << "z = (z - " << paramsFloat[7] << ")*" << paramsFloat[11] << ";\n";
-                            out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
-                            out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
-                            out << "int u = min((int) floor(z), " << paramsInt[2] << "-1);\n";
+                        for (int k = 0; k < 3; k++) {
+                            if (periodic[k]) {
+                                out << axis[k] << " = (" << axis[k] << " - " << paramsFloat[3+2*k] << ")*" << paramsFloat[13+k] << ";\n";
+                                out << axis[k] << " = (" << axis[k] << " - floor(" << axis[k] << "))*" << paramsFloat[k] << ";\n";
+                            }
+                            else
+                                out << axis[k] << " = (" << axis[k] << " - " << paramsFloat[3+2*k] << ")*" << paramsFloat[9+k] << ";\n";
                         }
+                        out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
+                        out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
+                        out << "int u = min((int) floor(z), " << paramsInt[2] << "-1);\n";
                         out << "int coeffIndex = 16*(s+" << paramsInt[0] << "*(t+" << paramsInt[1] << "*u));\n";
                         out << "float4 c[16];\n";
                         for (int j = 0; j < 16; j++)
@@ -489,7 +499,7 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                             else
                                 throw OpenMMException("Unsupported derivative order for Continuous3DFunction");
                         }
-                        if (!periodic)
+                        if (!inRange.empty())
                             out << "}\n";
                     }
                     else if (dynamic_cast<const Discrete1DFunction*>(functions[i]) != NULL) {
@@ -881,14 +891,14 @@ vector<float> ExpressionUtilities::computeFunctionCoefficients(const TabulatedFu
         int xsize, ysize;
         double xmin, xmax, ymin, ymax;
         fn.getFunctionParameters(xsize, ysize, values, xmin, xmax, ymin, ymax);
-        bool periodic = fn.getPeriodic();
+        bool xperiodic = fn.getPeriodic(0), yperiodic = fn.getPeriodic(1);
         vector<double> x(xsize), y(ysize);
         for (int i = 0; i < xsize; i++)
             x[i] = xmin+i*(xmax-xmin)/(xsize-1);
         for (int i = 0; i < ysize; i++)
             y[i] = ymin+i*(ymax-ymin)/(ysize-1);
         vector<vector<double> > c;
-        SplineFitter::create2DSpline(x, y, values, periodic, c);
+        SplineFitter::create2DSpline(x, y, values, xperiodic, yperiodic, c);
         vector<float> f(16*c.size());
         for (int i = 0; i < (int) c.size(); i++) {
             for (int j = 0; j < 16; j++)
@@ -905,7 +915,7 @@ vector<float> ExpressionUtilities::computeFunctionCoefficients(const TabulatedFu
         int xsize, ysize, zsize;
         double xmin, xmax, ymin, ymax, zmin, zmax;
         fn.getFunctionParameters(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax);
-        bool periodic = fn.getPeriodic();
+        bool xperiodic = fn.getPeriodic(0), yperiodic = fn.getPeriodic(1), zperiodic = fn.getPeriodic(2);
         vector<double> x(xsize), y(ysize), z(zsize);
         for (int i = 0; i < xsize; i++)
             x[i] = xmin+i*(xmax-xmin)/(xsize-1);
@@ -914,7 +924,7 @@ vector<float> ExpressionUtilities::computeFunctionCoefficients(const TabulatedFu
         for (int i = 0; i < zsize; i++)
             z[i] = zmin+i*(zmax-zmin)/(zsize-1);
         vector<vector<double> > c;
-        SplineFitter::create3DSpline(x, y, z, values, periodic, c);
+        SplineFitter::create3DSpline(x, y, z, values, xperiodic, yperiodic, zperiodic, c);
         vector<float> f(64*c.size());
         for (int i = 0; i < (int) c.size(); i++) {
             for (int j = 0; j < 64; j++)
@@ -990,7 +1000,7 @@ vector<vector<double> > ExpressionUtilities::computeFunctionParameters(const vec
             int xsize, ysize;
             double xmin, xmax, ymin, ymax;
             fn.getFunctionParameters(xsize, ysize, values, xmin, xmax, ymin, ymax);
-            int periodic = (int) fn.getPeriodic();
+            bool xperiodic = fn.getPeriodic(0), yperiodic = fn.getPeriodic(1);
             params[i].push_back(xsize-1);
             params[i].push_back(ysize-1);
             params[i].push_back(xmin);
@@ -999,9 +1009,10 @@ vector<vector<double> > ExpressionUtilities::computeFunctionParameters(const vec
             params[i].push_back(ymax);
             params[i].push_back((xsize-1)/(xmax-xmin));
             params[i].push_back((ysize-1)/(ymax-ymin));
-            params[i].push_back(periodic);
+            params[i].push_back(xperiodic);
             params[i].push_back(1.0/(xmax-xmin));
             params[i].push_back(1.0/(ymax-ymin));
+            params[i].push_back(yperiodic);
         }
         else if (dynamic_cast<const Continuous3DFunction*>(functions[i]) != NULL) {
             const Continuous3DFunction& fn = dynamic_cast<const Continuous3DFunction&>(*functions[i]);
@@ -1009,7 +1020,7 @@ vector<vector<double> > ExpressionUtilities::computeFunctionParameters(const vec
             int xsize, ysize, zsize;
             double xmin, xmax, ymin, ymax, zmin, zmax;
             fn.getFunctionParameters(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax);
-            int periodic = (int) fn.getPeriodic();
+            bool xperiodic = fn.getPeriodic(0), yperiodic = fn.getPeriodic(1), zperiodic = fn.getPeriodic(2);
             params[i].push_back(xsize-1);
             params[i].push_back(ysize-1);
             params[i].push_back(zsize-1);
@@ -1022,10 +1033,12 @@ vector<vector<double> > ExpressionUtilities::computeFunctionParameters(const vec
             params[i].push_back((xsize-1)/(xmax-xmin));
             params[i].push_back((ysize-1)/(ymax-ymin));
             params[i].push_back((zsize-1)/(zmax-zmin));
-            params[i].push_back(periodic);
+            params[i].push_back(xperiodic);
             params[i].push_back(1.0/(xmax-xmin));
             params[i].push_back(1.0/(ymax-ymin));
             params[i].push_back(1.0/(zmax-zmin));
+            params[i].push_back(yperiodic);
+            params[i].push_back(zperiodic);
         }
         else if (dynamic_cast<const Discrete1DFunction*>(functions[i]) != NULL) {
             const Discrete1DFunction& fn = dynamic_cast<const Discrete1DFunction&>(*functions[i]);

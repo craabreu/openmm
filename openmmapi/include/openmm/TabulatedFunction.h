@@ -55,7 +55,7 @@ namespace OpenMM {
 
 class OPENMM_EXPORT TabulatedFunction {
 public:
-    TabulatedFunction() : updateCount(0) {
+    TabulatedFunction() : periodic(false), updateCount(0) {
     }
     virtual ~TabulatedFunction() {
     }
@@ -64,9 +64,18 @@ public:
      */
     virtual TabulatedFunction* Copy() const = 0;
     /**
-     * Get the periodicity status of the tabulated function.
+     * Get whether the tabulated function is periodic.  For a function of several variables,
+     * this is true only if the function is periodic along every axis.
      */
     bool getPeriodic() const;
+    /**
+     * Get whether a continuous tabulated function is periodic along one axis.
+     *
+     * @param axis   the index of the axis: 0 for x, 1 for y, or 2 for z.  It must be smaller
+     *               than the number of variables of the function.  Discrete functions have no
+     *               periodic axes, so any value is invalid for them.
+     */
+    bool getPeriodic(int axis) const;
     /**
      * Get the value of a counter that is updated every time setFunctionParameters()
      * is called.  This provides a fast way to detect when a function has changed.
@@ -78,6 +87,7 @@ public:
     }
 protected:
     bool periodic;
+    std::vector<bool> periodicAxes;
     int updateCount;
 };
 
@@ -151,6 +161,24 @@ public:
      */
     Continuous2DFunction(int xsize, int ysize, const std::vector<double>& values, double xmin, double xmax, double ymin, double ymax, bool periodic=false);
     /**
+     * Create a Continuous2DFunction f(x,y) that is periodic along some axes and not others.
+     *
+     * @param xsize      the number of table elements along the x direction
+     * @param ysize      the number of table elements along the y direction
+     * @param values     the tabulated values of the function f(x,y), ordered so that values[i+xsize*j] = f(x_i,y_j).
+     *                   This must be of length xsize*ysize.  A cubic spline is used to interpolate between the
+     *                   tabulated values.  Along a periodic axis, the argument is wrapped into its range and the first
+     *                   and last values must be equal.  Along a non-periodic axis, the function is zero when the
+     *                   argument is outside its range.
+     * @param xmin       the value of x corresponding to the first element of values
+     * @param xmax       the value of x corresponding to the last element of values
+     * @param ymin       the value of y corresponding to the first element of values
+     * @param ymax       the value of y corresponding to the last element of values
+     * @param xperiodic  whether the interpolated function is periodic along x
+     * @param yperiodic  whether the interpolated function is periodic along y
+     */
+    Continuous2DFunction(int xsize, int ysize, const std::vector<double>& values, double xmin, double xmax, double ymin, double ymax, bool xperiodic, bool yperiodic);
+    /**
      * Get the parameters for the tabulated function.
      *
      * @param[out] values     the tabulated values of the function f(x,y) at xsize uniformly spaced values of x between xmin
@@ -209,7 +237,7 @@ public:
      *                   This must be of length xsize*ysize*zsize.
      * @param xsize      the number of table elements along the x direction
      * @param ysize      the number of table elements along the y direction
-     * @param ysize      the number of table elements along the z direction
+     * @param zsize      the number of table elements along the z direction
      * @param xmin       the value of x corresponding to the first element of values
      * @param xmax       the value of x corresponding to the last element of values
      * @param ymin       the value of y corresponding to the first element of values
@@ -219,6 +247,28 @@ public:
      * @param periodic       whether the interpolated function is periodic
      */
     Continuous3DFunction(int xsize, int ysize, int zsize, const std::vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, bool periodic=false);
+    /**
+     * Create a Continuous3DFunction f(x,y,z) that is periodic along some axes and not others.
+     *
+     * @param xsize      the number of table elements along the x direction
+     * @param ysize      the number of table elements along the y direction
+     * @param zsize      the number of table elements along the z direction
+     * @param values     the tabulated values of the function f(x,y,z), ordered so that
+     *                   values[i+xsize*j+xsize*ysize*k] = f(x_i,y_j,z_k).  This must be of length xsize*ysize*zsize.
+     *                   A cubic spline is used to interpolate between the tabulated values.  Along a periodic axis,
+     *                   the argument is wrapped into its range and the first and last values must be equal.  Along a
+     *                   non-periodic axis, the function is zero when the argument is outside its range.
+     * @param xmin       the value of x corresponding to the first element of values
+     * @param xmax       the value of x corresponding to the last element of values
+     * @param ymin       the value of y corresponding to the first element of values
+     * @param ymax       the value of y corresponding to the last element of values
+     * @param zmin       the value of z corresponding to the first element of values
+     * @param zmax       the value of z corresponding to the last element of values
+     * @param xperiodic  whether the interpolated function is periodic along x
+     * @param yperiodic  whether the interpolated function is periodic along y
+     * @param zperiodic  whether the interpolated function is periodic along z
+     */
+    Continuous3DFunction(int xsize, int ysize, int zsize, const std::vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, bool xperiodic, bool yperiodic, bool zperiodic);
     /**
      * Get the parameters for the tabulated function.
      *

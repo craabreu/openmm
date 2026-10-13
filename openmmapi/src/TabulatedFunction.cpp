@@ -37,12 +37,19 @@ bool TabulatedFunction::getPeriodic() const {
     return periodic;
 }
 
+bool TabulatedFunction::getPeriodic(int axis) const {
+    if (axis < 0 || axis >= (int) periodicAxes.size())
+        throw OpenMMException("TabulatedFunction: axis index out of range");
+    return periodicAxes[axis];
+}
+
 int TabulatedFunction::getUpdateCount() const {
     return updateCount;
 }
 
 Continuous1DFunction::Continuous1DFunction(const vector<double>& values, double min, double max, bool periodic) {
     this->periodic = periodic;
+    periodicAxes = {periodic};
     setFunctionParameters(values, min, max);
 }
 
@@ -72,23 +79,27 @@ void Continuous1DFunction::setFunctionParameters(const vector<double>& values, d
 }
 
 Continuous1DFunction* Continuous1DFunction::Copy() const {
-    vector<double> new_vec(values.size());
-    for (size_t i = 0; i < values.size(); i++)
-        new_vec[i] = values[i];
-    return new Continuous1DFunction(new_vec, min, max);
+    return new Continuous1DFunction(values, min, max, periodic);
 }
 
 bool Continuous1DFunction::operator==(const TabulatedFunction& other) const {
     const Continuous1DFunction* fn = dynamic_cast<const Continuous1DFunction*>(&other);
     if (fn == NULL)
         return false;
+    if (fn->periodic != periodic)
+        return false;
     if (fn->min != min || fn->max != max)
         return false;
     return (fn->values == values);
 }
 
-Continuous2DFunction::Continuous2DFunction(int xsize, int ysize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, bool periodic) {
-    this->periodic = periodic;
+Continuous2DFunction::Continuous2DFunction(int xsize, int ysize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, bool periodic) :
+        Continuous2DFunction(xsize, ysize, values, xmin, xmax, ymin, ymax, periodic, periodic) {
+}
+
+Continuous2DFunction::Continuous2DFunction(int xsize, int ysize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, bool xperiodic, bool yperiodic) {
+    periodic = xperiodic && yperiodic;
+    periodicAxes = {xperiodic, yperiodic};
     setFunctionParameters(xsize, ysize, values, xmin, xmax, ymin, ymax);
 }
 
@@ -103,12 +114,10 @@ void Continuous2DFunction::getFunctionParameters(int& xsize, int& ysize, vector<
 }
 
 void Continuous2DFunction::setFunctionParameters(int xsize, int ysize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax) {
-    if (periodic) {
-        if (xsize < 3 || ysize < 3)
-           throw OpenMMException("Continuous2DFunction: must have at least three points along each axis if periodic");
-        // Note: value-matching at boundary is eventually checked at 2D-spline creation.
-    }
-    else if (xsize < 2 || ysize < 2)
+    // Value matching at the ends of periodic axes is checked when the spline is created.
+    if ((periodicAxes[0] && xsize < 3) || (periodicAxes[1] && ysize < 3))
+        throw OpenMMException("Continuous2DFunction: must have at least three points along each periodic axis");
+    if (xsize < 2 || ysize < 2)
         throw OpenMMException("Continuous2DFunction: must have at least two points along each axis");
     if (values.size() != xsize*ysize)
         throw OpenMMException("Continuous2DFunction: incorrect number of values");
@@ -127,15 +136,14 @@ void Continuous2DFunction::setFunctionParameters(int xsize, int ysize, const vec
 }
 
 Continuous2DFunction* Continuous2DFunction::Copy() const {
-    vector<double> new_vec(values.size());
-    for (size_t i = 0; i < values.size(); i++)
-        new_vec[i] = values[i];
-    return new Continuous2DFunction(xsize, ysize, new_vec, xmin, xmax, ymin, ymax);
+    return new Continuous2DFunction(xsize, ysize, values, xmin, xmax, ymin, ymax, periodicAxes[0], periodicAxes[1]);
 }
 
 bool Continuous2DFunction::operator==(const TabulatedFunction& other) const {
     const Continuous2DFunction* fn = dynamic_cast<const Continuous2DFunction*>(&other);
     if (fn == NULL)
+        return false;
+    if (fn->periodicAxes != periodicAxes)
         return false;
     if (fn->xsize != xsize || fn->ysize != ysize)
         return false;
@@ -146,8 +154,13 @@ bool Continuous2DFunction::operator==(const TabulatedFunction& other) const {
     return (fn->values == values);
 }
 
-Continuous3DFunction::Continuous3DFunction(int xsize, int ysize, int zsize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, bool periodic) {
-    this->periodic = periodic;
+Continuous3DFunction::Continuous3DFunction(int xsize, int ysize, int zsize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, bool periodic) :
+        Continuous3DFunction(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax, periodic, periodic, periodic) {
+}
+
+Continuous3DFunction::Continuous3DFunction(int xsize, int ysize, int zsize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax, bool xperiodic, bool yperiodic, bool zperiodic) {
+    periodic = xperiodic && yperiodic && zperiodic;
+    periodicAxes = {xperiodic, yperiodic, zperiodic};
     setFunctionParameters(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax);
 }
 
@@ -165,12 +178,10 @@ void Continuous3DFunction::getFunctionParameters(int& xsize, int& ysize, int& zs
 }
 
 void Continuous3DFunction::setFunctionParameters(int xsize, int ysize, int zsize, const vector<double>& values, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax) {
-    if (periodic) {
-       if (xsize < 3 || ysize < 3 || zsize < 3)
-           throw OpenMMException("Continuous3DFunction: must have at least three points along each axis if periodic");
-       // Note: value-matching at boundary is eventually checked at 3D-spline creation.
-    }
-    else if (xsize < 2 || ysize < 2 || zsize < 2)
+    // Value matching at the ends of periodic axes is checked when the spline is created.
+    if ((periodicAxes[0] && xsize < 3) || (periodicAxes[1] && ysize < 3) || (periodicAxes[2] && zsize < 3))
+        throw OpenMMException("Continuous3DFunction: must have at least three points along each periodic axis");
+    if (xsize < 2 || ysize < 2 || zsize < 2)
         throw OpenMMException("Continuous3DFunction: must have at least two points along each axis");
     if (values.size() != xsize*ysize*zsize)
         throw OpenMMException("Continuous3DFunction: incorrect number of values");
@@ -194,15 +205,14 @@ void Continuous3DFunction::setFunctionParameters(int xsize, int ysize, int zsize
 }
 
 Continuous3DFunction* Continuous3DFunction::Copy() const {
-    vector<double> new_vec(values.size());
-    for (size_t i = 0; i < values.size(); i++)
-        new_vec[i] = values[i];
-    return new Continuous3DFunction(xsize, ysize, zsize, new_vec, xmin, xmax, ymin, ymax, zmin, zmax);
+    return new Continuous3DFunction(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax, periodicAxes[0], periodicAxes[1], periodicAxes[2]);
 }
 
 bool Continuous3DFunction::operator==(const TabulatedFunction& other) const {
     const Continuous3DFunction* fn = dynamic_cast<const Continuous3DFunction*>(&other);
     if (fn == NULL)
+        return false;
+    if (fn->periodicAxes != periodicAxes)
         return false;
     if (fn->xsize != xsize || fn->ysize != ysize || fn->zsize != zsize)
         return false;

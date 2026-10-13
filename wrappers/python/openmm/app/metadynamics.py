@@ -126,16 +126,13 @@ class Metadynamics(object):
             self._force.addCollectiveVariable(name, var.force)
         self._widths = [v.gridWidth for v in variables]
         self._limits = sum(([v.minValue, v.maxValue] for v in variables), [])
-        numPeriodics = sum(v.periodic for v in variables)
-        if numPeriodics not in [0, len(variables)]:
-            raise ValueError('Metadynamics cannot handle mixed periodic/non-periodic variables')
-        periodic = numPeriodics == len(variables)
+        periodic = [v.periodic for v in variables]
         if len(variables) == 1:
-            self._table = mm.Continuous1DFunction(self._totalBias.flatten(), *self._limits, periodic)
+            self._table = mm.Continuous1DFunction(self._totalBias.flatten(), *self._limits, *periodic)
         elif len(variables) == 2:
-            self._table = mm.Continuous2DFunction(*self._widths, self._totalBias.flatten(), *self._limits, periodic)
+            self._table = mm.Continuous2DFunction(*self._widths, self._totalBias.flatten(), *self._limits, *periodic)
         elif len(variables) == 3:
-            self._table = mm.Continuous3DFunction(*self._widths, self._totalBias.flatten(), *self._limits, periodic)
+            self._table = mm.Continuous3DFunction(*self._widths, self._totalBias.flatten(), *self._limits, *periodic)
         else:
             raise ValueError('Metadynamics requires 1, 2, or 3 collective variables')
         self._force.addTabulatedFunction('table', self._table)

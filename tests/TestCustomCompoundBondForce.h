@@ -355,6 +355,139 @@ void testIllegalVariable() {
     ASSERT(threwException);
 }
 
+void testPeriodicSeam() {
+    // An argument just below the minimum of a periodic table must wrap to the start of
+    // the table. In single precision, (x - floor(x)) rounds to 1 for such arguments,
+    // which used to index one cell past the end of the table.
+    const int size = 11;
+    vector<double> table1(size), table2(size*size), table3(size*size*size);
+    for (int i = 0; i < size; i++) {
+        double ci = cos(2*M_PI*i/(size-1));
+        table1[i] = ci+2;
+        for (int j = 0; j < size; j++) {
+            double cj = cos(2*M_PI*j/(size-1));
+            table2[i+size*j] = ci+cj+2;
+            for (int k = 0; k < size; k++)
+                table3[i+size*j+size*size*k] = ci+cj+cos(2*M_PI*k/(size-1))+2;
+        }
+    }
+    System system;
+    system.addParticle(1.0);
+    CustomCompoundBondForce* force = new CustomCompoundBondForce(1, "f1(x1)+f2(x1,y1)+f3(x1,y1,z1)");
+    force->addBond({0}, {});
+    force->addTabulatedFunction("f1", new Continuous1DFunction(table1, 0.0, 1.0, true));
+    force->addTabulatedFunction("f2", new Continuous2DFunction(size, size, table2, 0.0, 1.0, 0.0, 1.0, true));
+    force->addTabulatedFunction("f3", new Continuous3DFunction(size, size, size, table3, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, true));
+    system.addForce(force);
+    VerletIntegrator integrator(0.01);
+    Context context(system, integrator, platform);
+
+    // At the origin, f1 = 3, f2 = 4 and f3 = 5.
+
+    for (double delta : {0.0, 1e-9, 1e-8, 2.9e-8, 1e-7}) {
+        context.setPositions({Vec3(-delta, -delta, -delta)});
+        ASSERT_EQUAL_TOL(12.0, context.getState(State::Energy).getPotentialEnergy(), 1e-4);
+    }
+}
+
+/**
+ * One axis of a test table. Periodic axes span [0, 2*pi] and tabulate cos(t); non-periodic
+ * axes span [0.2, 1.1] and tabulate cos(0.33*t). Sample points extend beyond each range.
+ */
+struct TableAxis {
+    bool periodic;
+    double min, max;
+    int size;
+    TableAxis(bool periodic) : periodic(periodic), min(periodic ? 0.0 : 0.2), max(periodic ? 2*M_PI : 1.1), size(periodic ? 25 : 15) {
+    }
+    double node(int i) const {
+        return min+i*(max-min)/(size-1);
+    }
+    double value(double t) const {
+        return periodic ? cos(t) : cos(0.33*t);
+    }
+    double deriv(double t) const {
+        return periodic ? -sin(t) : -0.33*sin(0.33*t);
+    }
+    bool inRange(double t) const {
+        return periodic || (t >= min && t <= max);
+    }
+    vector<double> samples() const {
+        vector<double> points;
+        if (periodic) {
+            for (double t = -1.5*M_PI; t < 3.5*M_PI; t += 0.7)
+                points.push_back(t);
+            // Just below the minimum, where single precision once indexed past the table.
+            points.push_back(min-1e-8);
+        }
+        else
+            for (double t = min-0.15; t < max+0.2; t += 0.1)
+                points.push_back(t);
+        return points;
+    }
+};
+
+void testMixedPeriodicContinuous2DFunction(bool xperiodic, bool yperiodic) {
+    TableAxis ax(xperiodic), ay(yperiodic);
+    vector<double> table(ax.size*ay.size);
+    for (int i = 0; i < ax.size; i++)
+        for (int j = 0; j < ay.size; j++)
+            table[i+ax.size*j] = ax.value(ax.node(i))*ay.value(ay.node(j));
+    System system;
+    system.addParticle(1.0);
+    CustomCompoundBondForce* force = new CustomCompoundBondForce(1, "fn(x1,y1)+1");
+    force->addBond({0}, {});
+    force->addTabulatedFunction("fn", new Continuous2DFunction(ax.size, ay.size, table, ax.min, ax.max, ay.min, ay.max, xperiodic, yperiodic));
+    system.addForce(force);
+    VerletIntegrator integrator(0.01);
+    Context context(system, integrator, platform);
+    for (double x : ax.samples())
+        for (double y : ay.samples()) {
+            context.setPositions({Vec3(x, y, 1.5)});
+            State state = context.getState(State::Forces | State::Energy);
+            double energy = 1;
+            Vec3 expectedForce(0, 0, 0);
+            if (ax.inRange(x) && ay.inRange(y)) {
+                energy += ax.value(x)*ay.value(y);
+                expectedForce = Vec3(-ax.deriv(x)*ay.value(y), -ax.value(x)*ay.deriv(y), 0);
+            }
+            ASSERT_EQUAL_VEC(expectedForce, state.getForces()[0], 0.05);
+            ASSERT_EQUAL_TOL(energy, state.getPotentialEnergy(), 0.02);
+        }
+}
+
+void testMixedPeriodicContinuous3DFunction(bool xperiodic, bool yperiodic, bool zperiodic) {
+    TableAxis ax(xperiodic), ay(yperiodic), az(zperiodic);
+    vector<double> table(ax.size*ay.size*az.size);
+    for (int i = 0; i < ax.size; i++)
+        for (int j = 0; j < ay.size; j++)
+            for (int k = 0; k < az.size; k++)
+                table[i+ax.size*j+ax.size*ay.size*k] = ax.value(ax.node(i))*ay.value(ay.node(j))*az.value(az.node(k));
+    System system;
+    system.addParticle(1.0);
+    CustomCompoundBondForce* force = new CustomCompoundBondForce(1, "fn(x1,y1,z1)+1");
+    force->addBond({0}, {});
+    force->addTabulatedFunction("fn", new Continuous3DFunction(ax.size, ay.size, az.size, table, ax.min, ax.max, ay.min, ay.max, az.min, az.max, xperiodic, yperiodic, zperiodic));
+    system.addForce(force);
+    VerletIntegrator integrator(0.01);
+    Context context(system, integrator, platform);
+    for (double x : ax.samples())
+        for (double y : ay.samples())
+            for (double z : az.samples()) {
+                context.setPositions({Vec3(x, y, z)});
+                State state = context.getState(State::Forces | State::Energy);
+                double energy = 1;
+                Vec3 expectedForce(0, 0, 0);
+                if (ax.inRange(x) && ay.inRange(y) && az.inRange(z)) {
+                    double gx = ax.value(x), gy = ay.value(y), gz = az.value(z);
+                    energy += gx*gy*gz;
+                    expectedForce = Vec3(-ax.deriv(x)*gy*gz, -gx*ay.deriv(y)*gz, -gx*gy*az.deriv(z));
+                }
+                ASSERT_EQUAL_VEC(expectedForce, state.getForces()[0], 0.05);
+                ASSERT_EQUAL_TOL(energy, state.getPotentialEnergy(), 0.02);
+            }
+}
+
 void testPeriodic(bool byParticles) {
     // Create a force that uses periodic boundary conditions.
 
@@ -521,6 +654,12 @@ int main(int argc, char* argv[]) {
         testPositionDependence();
         testContinuous2DFunction();
         testContinuous3DFunction();
+        testPeriodicSeam();
+        testMixedPeriodicContinuous2DFunction(true, false);
+        testMixedPeriodicContinuous2DFunction(false, true);
+        testMixedPeriodicContinuous3DFunction(true, false, true);
+        testMixedPeriodicContinuous3DFunction(false, true, false);
+        testMixedPeriodicContinuous3DFunction(true, false, false);
         testMultipleBonds();
         testIllegalVariable();
         testPeriodic(true);
