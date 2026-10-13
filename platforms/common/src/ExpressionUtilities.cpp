@@ -337,14 +337,12 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                         if (periodic) {
                             out << "x = (x - " << paramsFloat[0] << ")*" << paramsFloat[5]<< ";\n";
                             out << "x = (x - floor(x))*" << paramsFloat[6] << ";\n";
-                            out << "int index = (int) (floor(x));\n";
                         }
                         else {
                             out << "if (x >= " << paramsFloat[0] << " && x <= " << paramsFloat[1] << ") {\n";
                             out << "x = (x - " << paramsFloat[0] << ")*" << paramsFloat[2] << ";\n";
-                            out << "int index = (int) (floor(x));\n";
-                            out << "index = min(index, (int) " << paramsInt[3] << ");\n";
                         }
+                        out << "int index = min((int) floor(x), (int) " << paramsInt[3] << ");\n";
                         out << "float4 coeff = " << functionNames[i].second << "[index];\n";
                         out << "real b = x-index;\n";
                         out << "real a = 1.0f-b;\n";
@@ -367,8 +365,8 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                             out << "y = (y - " << paramsFloat[4] << ")*" << paramsFloat[10] << ";\n";
                             out << "x = (x - floor(x))*" << paramsFloat[0] << ";\n";
                             out << "y = (y - floor(y))*" << paramsFloat[1] << ";\n";
-                            out << "int s = (int) floor(x);\n";
-                            out << "int t = (int) floor(y);\n";
+                            out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
+                            out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
                         }
                         else {
                             out << "if (x >= " << paramsFloat[2] << " && x <= " << paramsFloat[3] << " && y >= " << paramsFloat[4] << " && y <= " << paramsFloat[5] << ") {\n";
@@ -423,9 +421,9 @@ void ExpressionUtilities::processExpression(stringstream& out, const ExpressionT
                             out << "x = (x - floor(x))*" << paramsFloat[0] << ";\n";
                             out << "y = (y - floor(y))*" << paramsFloat[1] << ";\n";
                             out << "z = (z - floor(z))*" << paramsFloat[2] << ";\n";
-                            out << "int s = (int) floor(x);\n";
-                            out << "int t = (int) floor(y);\n";
-                            out << "int u = (int) floor(z);\n";
+                            out << "int s = min((int) floor(x), " << paramsInt[0] << "-1);\n";
+                            out << "int t = min((int) floor(y), " << paramsInt[1] << "-1);\n";
+                            out << "int u = min((int) floor(z), " << paramsInt[2] << "-1);\n";
                         }
                         else {
                             out << "if (x >= " << paramsFloat[3] << " && x <= " << paramsFloat[4] << " && y >= " << paramsFloat[5] << " && y <= " << paramsFloat[6] << " && z >= " << paramsFloat[7] << " && z <= " << paramsFloat[8] << ") {\n";

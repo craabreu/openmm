@@ -355,6 +355,41 @@ void testIllegalVariable() {
     ASSERT(threwException);
 }
 
+void testPeriodicSeam() {
+    // An argument just below the minimum of a periodic table must wrap to the start of
+    // the table. In single precision, (x - floor(x)) rounds to 1 for such arguments,
+    // which used to index one cell past the end of the table.
+    const int size = 11;
+    vector<double> table1(size), table2(size*size), table3(size*size*size);
+    for (int i = 0; i < size; i++) {
+        double ci = cos(2*M_PI*i/(size-1));
+        table1[i] = ci+2;
+        for (int j = 0; j < size; j++) {
+            double cj = cos(2*M_PI*j/(size-1));
+            table2[i+size*j] = ci+cj+2;
+            for (int k = 0; k < size; k++)
+                table3[i+size*j+size*size*k] = ci+cj+cos(2*M_PI*k/(size-1))+2;
+        }
+    }
+    System system;
+    system.addParticle(1.0);
+    CustomCompoundBondForce* force = new CustomCompoundBondForce(1, "f1(x1)+f2(x1,y1)+f3(x1,y1,z1)");
+    force->addBond({0}, {});
+    force->addTabulatedFunction("f1", new Continuous1DFunction(table1, 0.0, 1.0, true));
+    force->addTabulatedFunction("f2", new Continuous2DFunction(size, size, table2, 0.0, 1.0, 0.0, 1.0, true));
+    force->addTabulatedFunction("f3", new Continuous3DFunction(size, size, size, table3, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, true));
+    system.addForce(force);
+    VerletIntegrator integrator(0.01);
+    Context context(system, integrator, platform);
+
+    // At the origin, f1 = 3, f2 = 4 and f3 = 5.
+
+    for (double delta : {0.0, 1e-9, 1e-8, 2.9e-8, 1e-7}) {
+        context.setPositions({Vec3(-delta, -delta, -delta)});
+        ASSERT_EQUAL_TOL(12.0, context.getState(State::Energy).getPotentialEnergy(), 1e-4);
+    }
+}
+
 void testPeriodic(bool byParticles) {
     // Create a force that uses periodic boundary conditions.
 
@@ -521,6 +556,7 @@ int main(int argc, char* argv[]) {
         testPositionDependence();
         testContinuous2DFunction();
         testContinuous3DFunction();
+        testPeriodicSeam();
         testMultipleBonds();
         testIllegalVariable();
         testPeriodic(true);
