@@ -32,6 +32,7 @@
 #endif
 #include "openmm/internal/AssertionUtilities.h"
 #include "openmm/internal/SplineFitter.h"
+#include "openmm/OpenMMException.h"
 #include <cmath>
 #include <iostream>
 #include <vector>
@@ -256,6 +257,146 @@ void testPeriodic3DSpline() {
     }
 }
 
+static double axisNode(bool periodic, int i, int size) {
+    // Periodic axes span [0, 2*pi]; non-periodic ones span [0, 1].
+    return periodic ? 2.0*M_PI*i/(size-1) : (double) i/(size-1);
+}
+
+static double dataNode(bool periodic, int i, int size) {
+    // Tabulate the last node of a periodic axis at the first one, so that both ends hold
+    // exactly the same values, as periodic splines require.
+    return axisNode(periodic, periodic && i == size-1 ? 0 : i, size);
+}
+
+static double axisValue(bool periodic, double t) {
+    // exp(t) has different values at the ends of [0, 1], so a periodic fit along a
+    // non-periodic axis must fail.
+    return periodic ? sin(t) : exp(t);
+}
+
+static double axisDeriv(bool periodic, double t) {
+    return periodic ? cos(t) : exp(t);
+}
+
+void testMixed2DSpline(bool xperiodic, bool yperiodic) {
+    const int xsize = 15;
+    const int ysize = 17;
+    vector<double> x(xsize), y(ysize), f(xsize*ysize);
+    for (int i = 0; i < xsize; i++)
+        x[i] = axisNode(xperiodic, i, xsize);
+    for (int j = 0; j < ysize; j++)
+        y[j] = axisNode(yperiodic, j, ysize);
+    for (int i = 0; i < xsize; i++)
+        for (int j = 0; j < ysize; j++)
+            f[i+j*xsize] = axisValue(xperiodic, dataNode(xperiodic, i, xsize))*axisValue(yperiodic, dataNode(yperiodic, j, ysize));
+    vector<vector<double> > c;
+    SplineFitter::create2DSpline(x, y, f, xperiodic, yperiodic, c);
+    for (int i = 0; i < xsize; i++)
+        for (int j = 0; j < ysize; j++)
+            ASSERT_EQUAL_TOL(f[i+j*xsize], SplineFitter::evaluate2DSpline(x, y, f, c, x[i], y[j]), 1e-6);
+    for (int i = 0; i < 10; i++)
+        for (int j = 0; j < 10; j++) {
+            double s = x[0]+(i+1)*(x[xsize-1]-x[0])/12.0;
+            double t = y[0]+(j+1)*(y[ysize-1]-y[0])/12.0;
+            ASSERT_EQUAL_TOL(axisValue(xperiodic, s)*axisValue(yperiodic, t), SplineFitter::evaluate2DSpline(x, y, f, c, s, t), 0.02);
+            double dx, dy;
+            SplineFitter::evaluate2DSplineDerivatives(x, y, f, c, s, t, dx, dy);
+            ASSERT_EQUAL_TOL(axisDeriv(xperiodic, s)*axisValue(yperiodic, t), dx, 0.05);
+            ASSERT_EQUAL_TOL(axisValue(xperiodic, s)*axisDeriv(yperiodic, t), dy, 0.05);
+        }
+
+    // The derivative along the periodic axis is continuous across the seam.
+
+    for (int k = 1; k < 10; k++) {
+        double dx0, dy0, dx1, dy1;
+        if (xperiodic) {
+            double t = y[0]+k*(y[ysize-1]-y[0])/10.0;
+            SplineFitter::evaluate2DSplineDerivatives(x, y, f, c, x[0], t, dx0, dy0);
+            SplineFitter::evaluate2DSplineDerivatives(x, y, f, c, x[xsize-1], t, dx1, dy1);
+            ASSERT_EQUAL_TOL(dx0, dx1, 1e-6);
+        }
+        if (yperiodic) {
+            double s = x[0]+k*(x[xsize-1]-x[0])/10.0;
+            SplineFitter::evaluate2DSplineDerivatives(x, y, f, c, s, y[0], dx0, dy0);
+            SplineFitter::evaluate2DSplineDerivatives(x, y, f, c, s, y[ysize-1], dx1, dy1);
+            ASSERT_EQUAL_TOL(dy0, dy1, 1e-6);
+        }
+    }
+
+    // Treating every axis as periodic must fail, since the non-periodic axis has
+    // different values at its ends.
+
+    bool thrown = false;
+    try {
+        SplineFitter::create2DSpline(x, y, f, true, c);
+    }
+    catch (const OpenMMException&) {
+        thrown = true;
+    }
+    ASSERT(thrown);
+}
+
+void testMixed3DSpline(bool xperiodic, bool yperiodic, bool zperiodic) {
+    const int xsize = 15;
+    const int ysize = 13;
+    const int zsize = 17;
+    vector<double> x(xsize), y(ysize), z(zsize), f(xsize*ysize*zsize);
+    for (int i = 0; i < xsize; i++)
+        x[i] = axisNode(xperiodic, i, xsize);
+    for (int j = 0; j < ysize; j++)
+        y[j] = axisNode(yperiodic, j, ysize);
+    for (int k = 0; k < zsize; k++)
+        z[k] = axisNode(zperiodic, k, zsize);
+    for (int i = 0; i < xsize; i++)
+        for (int j = 0; j < ysize; j++)
+            for (int k = 0; k < zsize; k++)
+                f[i+xsize*j+xsize*ysize*k] = axisValue(xperiodic, dataNode(xperiodic, i, xsize))*axisValue(yperiodic, dataNode(yperiodic, j, ysize))*axisValue(zperiodic, dataNode(zperiodic, k, zsize));
+    vector<vector<double> > c;
+    SplineFitter::create3DSpline(x, y, z, f, xperiodic, yperiodic, zperiodic, c);
+    for (int i = 0; i < xsize; i++)
+        for (int j = 0; j < ysize; j++)
+            for (int k = 0; k < zsize; k++)
+                ASSERT_EQUAL_TOL(f[i+xsize*j+xsize*ysize*k], SplineFitter::evaluate3DSpline(x, y, z, f, c, x[i], y[j], z[k]), 1e-6);
+    for (int i = 0; i < 6; i++)
+        for (int j = 0; j < 6; j++)
+            for (int k = 0; k < 6; k++) {
+                double s = x[0]+(i+1)*(x[xsize-1]-x[0])/8.0;
+                double t = y[0]+(j+1)*(y[ysize-1]-y[0])/8.0;
+                double u = z[0]+(k+1)*(z[zsize-1]-z[0])/8.0;
+                double gx = axisValue(xperiodic, s), gy = axisValue(yperiodic, t), gz = axisValue(zperiodic, u);
+                ASSERT_EQUAL_TOL(gx*gy*gz, SplineFitter::evaluate3DSpline(x, y, z, f, c, s, t, u), 0.02);
+                double dx, dy, dz;
+                SplineFitter::evaluate3DSplineDerivatives(x, y, z, f, c, s, t, u, dx, dy, dz);
+                ASSERT_EQUAL_TOL(axisDeriv(xperiodic, s)*gy*gz, dx, 0.05);
+                ASSERT_EQUAL_TOL(gx*axisDeriv(yperiodic, t)*gz, dy, 0.05);
+                ASSERT_EQUAL_TOL(gx*gy*axisDeriv(zperiodic, u), dz, 0.05);
+            }
+}
+
+void testSizeErrorsNameTheirFunction() {
+    // A table of the wrong size is reported by the function that received it.
+    vector<double> x(3), y(3), z(3), f(5);
+    for (int i = 0; i < 3; i++)
+        x[i] = y[i] = z[i] = i;
+    vector<vector<double> > c;
+    string message;
+    try {
+        SplineFitter::create2DSpline(x, y, f, false, false, c);
+    }
+    catch (const OpenMMException& e) {
+        message = e.what();
+    }
+    ASSERT_EQUAL(string("create2DSpline: incorrect number of values"), message);
+    message = "";
+    try {
+        SplineFitter::create3DSpline(x, y, z, f, false, false, false, c);
+    }
+    catch (const OpenMMException& e) {
+        message = e.what();
+    }
+    ASSERT_EQUAL(string("create3DSpline: incorrect number of values"), message);
+}
+
 int main() {
     try {
         testNaturalSpline();
@@ -264,6 +405,12 @@ int main() {
         testPeriodic2DSpline();
         test3DSpline();
         testPeriodic3DSpline();
+        testMixed2DSpline(true, false);
+        testMixed2DSpline(false, true);
+        testMixed3DSpline(true, false, true);
+        testMixed3DSpline(false, true, false);
+        testMixed3DSpline(true, false, false);
+        testSizeErrorsNameTheirFunction();
     }
     catch(const exception& e) {
         cout << "exception: " << e.what() << endl;
