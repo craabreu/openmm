@@ -120,7 +120,8 @@ CustomFunction* ReferenceContinuous1DFunction::clone() const {
 }
 
 ReferenceContinuous2DFunction::ReferenceContinuous2DFunction(const Continuous2DFunction& function) : function(function) {
-    periodic = function.getPeriodic();
+    xperiodic = function.getPeriodic(0);
+    yperiodic = function.getPeriodic(1);
     function.getFunctionParameters(xsize, ysize, values, xmin, xmax, ymin, ymax);
     x.resize(xsize);
     y.resize(ysize);
@@ -128,11 +129,12 @@ ReferenceContinuous2DFunction::ReferenceContinuous2DFunction(const Continuous2DF
         x[i] = xmin+i*(xmax-xmin)/(xsize-1);
     for (int i = 0; i < ysize; i++)
         y[i] = ymin+i*(ymax-ymin)/(ysize-1);
-    SplineFitter::create2DSpline(x, y, values, periodic, c);
+    SplineFitter::create2DSpline(x, y, values, xperiodic, yperiodic, c);
 }
 
 ReferenceContinuous2DFunction::ReferenceContinuous2DFunction(const ReferenceContinuous2DFunction& other) : function(other.function) {
-    periodic = function.getPeriodic();
+    xperiodic = function.getPeriodic(0);
+    yperiodic = function.getPeriodic(1);
     function.getFunctionParameters(xsize, ysize, values, xmin, xmax, ymin, ymax);
     x = other.x;
     y = other.y;
@@ -145,20 +147,20 @@ int ReferenceContinuous2DFunction::getNumArguments() const {
 }
 
 double ReferenceContinuous2DFunction::evaluate(const double* arguments) const {
-    double u = periodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
+    double u = xperiodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
     if (u < xmin || u > xmax)
         return 0.0;
-    double v = periodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
+    double v = yperiodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
     if (v < ymin || v > ymax)
         return 0.0;
     return SplineFitter::evaluate2DSpline(x, y, values, c, u, v);
 }
 
 double ReferenceContinuous2DFunction::evaluateDerivative(const double* arguments, const int* derivOrder) const {
-    double u = periodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
+    double u = xperiodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
     if (u < xmin || u > xmax)
         return 0.0;
-    double v = periodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
+    double v = yperiodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
     if (v < ymin || v > ymax)
         return 0.0;
     double dx, dy;
@@ -175,7 +177,9 @@ CustomFunction* ReferenceContinuous2DFunction::clone() const {
 }
 
 ReferenceContinuous3DFunction::ReferenceContinuous3DFunction(const Continuous3DFunction& function) : function(function) {
-    periodic = function.getPeriodic();
+    xperiodic = function.getPeriodic(0);
+    yperiodic = function.getPeriodic(1);
+    zperiodic = function.getPeriodic(2);
     function.getFunctionParameters(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax);
     x.resize(xsize);
     y.resize(ysize);
@@ -186,11 +190,13 @@ ReferenceContinuous3DFunction::ReferenceContinuous3DFunction(const Continuous3DF
         y[i] = ymin+i*(ymax-ymin)/(ysize-1);
     for (int i = 0; i < zsize; i++)
         z[i] = zmin+i*(zmax-zmin)/(zsize-1);
-    SplineFitter::create3DSpline(x, y, z, values, periodic, c);
+    SplineFitter::create3DSpline(x, y, z, values, xperiodic, yperiodic, zperiodic, c);
 }
 
 ReferenceContinuous3DFunction::ReferenceContinuous3DFunction(const ReferenceContinuous3DFunction& other) : function(other.function) {
-    periodic = function.getPeriodic();
+    xperiodic = function.getPeriodic(0);
+    yperiodic = function.getPeriodic(1);
+    zperiodic = function.getPeriodic(2);
     function.getFunctionParameters(xsize, ysize, zsize, values, xmin, xmax, ymin, ymax, zmin, zmax);
     x = other.x;
     y = other.y;
@@ -204,26 +210,26 @@ int ReferenceContinuous3DFunction::getNumArguments() const {
 }
 
 double ReferenceContinuous3DFunction::evaluate(const double* arguments) const {
-    double u = periodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
+    double u = xperiodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
     if (u < xmin || u > xmax)
         return 0.0;
-    double v = periodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
+    double v = yperiodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
     if (v < ymin || v > ymax)
         return 0.0;
-    double w = periodic ? wrap(arguments[2], zmin, zmax) : arguments[2];
+    double w = zperiodic ? wrap(arguments[2], zmin, zmax) : arguments[2];
     if (w < zmin || w > zmax)
         return 0.0;
     return SplineFitter::evaluate3DSpline(x, y, z, values, c, u, v, w);
 }
 
 double ReferenceContinuous3DFunction::evaluateDerivative(const double* arguments, const int* derivOrder) const {
-    double u = periodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
+    double u = xperiodic ? wrap(arguments[0], xmin, xmax) : arguments[0];
     if (u < xmin || u > xmax)
         return 0.0;
-    double v = periodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
+    double v = yperiodic ? wrap(arguments[1], ymin, ymax) : arguments[1];
     if (v < ymin || v > ymax)
         return 0.0;
-    double w = periodic ? wrap(arguments[2], zmin, zmax) : arguments[2];
+    double w = zperiodic ? wrap(arguments[2], zmin, zmax) : arguments[2];
     if (w < zmin || w > zmax)
         return 0.0;
     double dx, dy, dz;

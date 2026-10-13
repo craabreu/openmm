@@ -76,7 +76,7 @@ private:
     const Continuous2DFunction& function;
     int xsize, ysize;
     double xmin, xmax, ymin, ymax;
-    bool periodic;
+    bool xperiodic, yperiodic;
     std::vector<double> x, y, values;
     std::vector<std::vector<double> > c;
 };
@@ -96,7 +96,7 @@ private:
     const Continuous3DFunction& function;
     int xsize, ysize, zsize;
     double xmin, xmax, ymin, ymax, zmin, zmax;
-    bool periodic;
+    bool xperiodic, yperiodic, zperiodic;
     std::vector<double> x, y, z, values;
     std::vector<std::vector<double> > c;
 };
